@@ -92,7 +92,7 @@ Model diuji dan di train dengan melihat baseline model dan hyperparameter tuning
 # 6. Model Deployment
 Kami men-deploy model ke dalam WebApps dengan Streamlit yang bisa di akses pada link berikut:
 
-[Prediksi Churn](www.google.com)
+[Prediksi Churn]([www.google.com](https://churn-prediction-vortech.streamlit.app/))
 
 Dengan fitur sebagai berikut
 1. **Penyesuaian threshold**: sebagai ambang batas/toleransi prediksi
