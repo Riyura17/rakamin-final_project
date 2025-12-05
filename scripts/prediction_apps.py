@@ -4,6 +4,8 @@ import pandas as pd
 import streamlit as st
 import matplotlib.pyplot as plt
 
+sensitive_cols = ['age', 'gender', 'education', 'marital_status', 'work_location']
+
 # === Load model & resources ===
 model = joblib.load("best_model.pkl")
 
@@ -13,14 +15,21 @@ overtime_median = feature_engineering["overtime_median"]
 # === Feature engineering ===
 def engineer_features(df):
     df = df.copy()
-
-    for col in sensitive_cols:
-        if col not in df.columns:
-            raise ValueError(f"Missing sensitive column: {col}")
-        
-    # Validasi 'age'
-    if "age" not in df.columns:
-        raise ValueError("Kolom 'age' diperlukan untuk analisis fairness.")
+    
+    required_for_fe = {
+        "marital_status",
+        "working_hours_per_week",
+        "overtime_hours_per_week",
+        "target_achievement",
+        "job_satisfaction",
+        "distance_to_office_km",
+        "company_tenure_years",
+        "manager_support_score"
+    }
+    
+    missing_fe = required_for_fe - set(df.columns)
+    if missing_fe:
+        raise ValueError(f"Missing for feature engineering: {missing_fe}")
 
     df["is_married"] = (df["marital_status"].str.strip().str.title() == "Married").astype(int)
     df["total_workload"] = df["working_hours_per_week"] + df["overtime_hours_per_week"]
@@ -31,11 +40,16 @@ def engineer_features(df):
     df["high_ot_low_sat"] = high_overtime & df["low_satisfaction"]
 
     # Buat age_group dari kolom 'age'
-    q1 = df['age'].quantile(0.33)
-    q2 = df['age'].quantile(0.66)
-
-    # Membagi kelompok usia berdasarkan kuartil
-    df['age_group'] = pd.cut(df['age'], bins=[22, q1, q2, 44], labels=['Young', 'Middle', 'Senior'])
+    if "age" in df.columns:
+        q1 = df['age'].quantile(0.33)
+        q2 = df['age'].quantile(0.66)
+        df['age_group'] = pd.cut(
+            df['age'],
+            bins=[df['age'].min()-1, q1, q2, df['age'].max()+1],
+            labels=['Young', 'Middle', 'Senior']
+        )
+    else:
+        df['age_group'] = None
 
     required_features = [
         'performance_efficiency',
@@ -60,12 +74,23 @@ st.sidebar.header("⚙️ Pengaturan")
 mode = st.sidebar.radio("Input Mode:", ["Manual Input", "Upload File"])
 threshold = st.sidebar.slider(
     "Threshold klasifikasi churn",
-    min_value=0.0, max_value=1.0, value=0.5, step=0.1,
+    min_value=0.0, max_value=1.0, value=0.5, step=0.01,
     help="Lower threshold → more sensitive to churn"
 )
 
-# --- Manual input ---
+if threshold > 0.8:
+    st.sidebar.warning(
+        f"Threshold terlalu tinggi"
+        f"\n\nIni akan mempengaruhi hasil model tidak sensitif terhadap churn"
+        )
+elif threshold < 0.2:
+    st.sidebar.warning(
+        f"Threshold terlalu rendah"
+        f"\n\nIni akan mempengaruhi hasil model sangat sensitif terhadap churn"
+        )
+pass
 
+# --- Manual input ---
 if mode == "Manual Input":
     st.title("Employee Churn Prediction")
     col1, col2 = st.columns(2)
@@ -81,7 +106,6 @@ if mode == "Manual Input":
         company_tenure_years = st.number_input("Company Tenure (years)", 0, 30, 2)
         manager_support_score = st.slider("Manager Support Score (1-4)", 1, 4, 2)
         marital_status = st.selectbox("Marital Status", ["Married", "Single"])
-        age = st.number_input("Age", 18, 50, 25)
 
     if st.button("Predict"):
         df = pd.DataFrame([{
@@ -93,11 +117,10 @@ if mode == "Manual Input":
             "company_tenure_years": company_tenure_years,
             "manager_support_score": manager_support_score,
             "marital_status": marital_status,
-            "age": age
         }])
 
         X, _ = engineer_features(df)
-        prob = model.predict_proba(X)[:, 1]
+        prob = model.predict_proba(X)[:, 1].item()
         pred = int(prob >= threshold)
 
         st.subheader(f"Prediction: {'YES' if pred else 'NO'}")
@@ -113,15 +136,14 @@ else:
     with tab1:
         st.subheader("📤 Upload Dataset")
         uploaded_file = st.file_uploader("Upload CSV or Excel", type=["csv", "xlsx"])
-        
-        sensitive_cols = ['age', 'gender', 'education', 'marital_status', 'work_location']
 
         if uploaded_file:
             if uploaded_file.name.endswith(".csv"):
                 df_raw = pd.read_csv(uploaded_file)
             else:
                 df_raw = pd.read_excel(uploaded_file)
-
+                
+            sensitive_cols = ['age', 'gender', 'education', 'marital_status', 'work_location']
             required = {
                 "target_achievement",
                 "working_hours_per_week",
@@ -194,7 +216,7 @@ else:
             st.pyplot(fig)
 
             # Dampak threshold
-            st.write("### Impact of Threshold:")
+            st.write("Impact of Threshold:")
             thresholds = np.arange(0.1, 1.0, 0.1)
             churn_rates = [(probs >= t).sum() for t in thresholds]
             impact_df = pd.DataFrame({
