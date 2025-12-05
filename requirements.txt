@@ -4,5 +4,6 @@ numpy
 scikit-learn
 imblearn
 joblib
+pickle
 matplotlib
 openpyxl
