@@ -308,11 +308,11 @@ else:
                         st.markdown("3 Faktor Utama Hasil Prediksi:")
                         for i, (feat, (val, _)) in enumerate(top3, 1):
                             readable_name = {
-                                'job_satisfaction': 'Job Satisfaction',
+                                'job_satisfaction': 'Job Satisfaction (1-4)',
                                 'distance_to_office_km': 'Distance to Office (km)',
                                 'working_hours_per_week': 'Working Hours/Week',
                                 'overtime_hours_per_week': 'Overtime Hours/Week',
-                                'manager_support_score': 'Manager Support Score',
+                                'manager_support_score': 'Manager Support Score (1-4)',
                                 'company_tenure_years': 'Company Tenure (years)',
                                 'is_married': 'Marital Status',
                                 'target_achievement': 'Target Achievement'
@@ -538,26 +538,30 @@ else:
                         st.warning("No groups found for selected attribute.")
                 else:
                     st.warning("Fairness analysis requires actual 'churn' labels in the dataset.")
-
+                    
                 # Peringatan disparitas
                 
                 if fairness_df['Recall (TPR)'].min() < 0.8:
-                    st.error(f"⚠️ Critical: At least one group has recall < 80% (min = {fairness_df['Recall (TPR)'].min():.2f})")                
-                    
-                min_recall = fairness_df['Recall (TPR)'].min()
-                max_recall = fairness_df['Recall (TPR)'].max()
-                disparity_ratio = min_recall / max_recall if max_recall > 0 else 0
-
-                if disparity_ratio < 0.8:
-                    st.error(f"⚠️ Significant disparity: Lowest recall ({min_recall:.2f}) is less than 80% of highest ({max_recall:.2f})")
+                    st.error(f"⚠️ Critical: One group has recall < 80% (min = {fairness_df['Recall (TPR)'].min():.2f})")
                 else:
-                    st.success("✅ Fairness acceptable: No major disparity in recall")
+                    st.success("✅ All groups have recall ≥ 80%")         
                     
-                min_fpr = fairness_df['FPR'].min()
-                max_fpr = fairness_df['FPR'].max()
-                disparity_ratio = min_fpr / max_fpr if max_fpr > 0 else 0
-                
-                if disparity_ratio < 0.8:
-                    st.error(f"⚠️ Significant disparity: Lowest recall ({min_fpr:.2f}) is less than 80% of highest ({max_fpr:.2f})")
+                # Recall
+                recall_vals = fairness_df['Recall (TPR)']
+                min_r, max_r = recall_vals.min(), recall_vals.max()
+                if min_r > 0 and max_r / min_r >= 1.5:
+                    st.error(f"⚠️ Significant recall disparity: Highest ({max_r:.3f}) is {max_r/min_r:.1f}× lowest ({min_r:.3f})")
+                elif min_r == 0:
+                    st.warning("⚠️ At least one group has 0 recall — fairness cannot be assessed reliably")
                 else:
-                    st.success("✅ Fairness acceptable: No major disparity in FPR")                
+                    st.success("✅ Recall disparity acceptable (ratio < 1.5)")
+                    
+                # FPR
+                fpr_vals = fairness_df['FPR']
+                min_f, max_f = fpr_vals.min(), fpr_vals.max()
+                if min_f > 0 and max_f / min_f >= 1.5:
+                    st.error(f"⚠️ Significant FPR disparity: Highest ({max_f:.3f}) is {max_f/min_f:.1f}× lowest ({min_f:.3f})")
+                elif min_f == 0 and max_f > 0:
+                    st.warning(f"⚠️ Extreme FPR disparity: Some groups have 0 FPR, others have {max_f:.3f}")
+                else:
+                    st.success("✅ FPR disparity acceptable (ratio < 1.5)")               
