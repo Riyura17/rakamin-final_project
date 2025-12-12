@@ -5,5 +5,4 @@ scikit-learn
 imblearn
 joblib
 matplotlib
-seaborn
 openpyxl
