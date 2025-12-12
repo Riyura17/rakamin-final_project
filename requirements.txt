@@ -1,8 +1,8 @@
 streamlit
-pandas
-numpy
-scikit-learn
-imbalanced-learn
-joblib
+pandas=2.3.3
+numpy=2.2.6
+scikit-learn=1.7.2
+imblearn
+joblib=0.14.0
 matplotlib
 openpyxl
